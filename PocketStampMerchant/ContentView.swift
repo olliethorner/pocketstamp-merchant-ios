@@ -1,21 +1,17 @@
-//
-//  ContentView.swift
-//  PocketStampMerchant
-//
-//  Created by Ollie Thorner on 01/06/2026.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var viewModel = AppViewModel()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if viewModel.isAuthenticated {
+                MerchantHomeView(viewModel: viewModel)
+            } else {
+                LoginView(viewModel: viewModel)
+            }
         }
-        .padding()
+        .animation(.easeInOut(duration: 0.25), value: viewModel.isAuthenticated)
     }
 }
 
