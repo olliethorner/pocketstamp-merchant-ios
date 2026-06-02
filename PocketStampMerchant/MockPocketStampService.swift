@@ -5,6 +5,7 @@ final class MockPocketStampService: PocketStampService {
     private let merchantId = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
     private let locationId = UUID(uuidString: "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB")!
     private var stampBalances: [UUID: Int] = [:]
+    private var customerPasses: [String: CustomerPass] = [:]
     private var stampEvents: [StampEvent] = []
     private var redemptionEvents: [RedemptionEvent] = []
 
@@ -70,6 +71,7 @@ final class MockPocketStampService: PocketStampService {
         updatedPass.currentStamps += 1
         updatedPass.lastUpdated = .now
         stampBalances[updatedPass.customerId] = updatedPass.currentStamps
+        customerPasses[updatedPass.passSerialNumber] = updatedPass
 
         let rewardAvailable = updatedPass.currentStamps >= updatedPass.rewardThreshold
         return TapResult(
@@ -107,6 +109,7 @@ final class MockPocketStampService: PocketStampService {
         updatedPass.currentStamps -= updatedPass.rewardThreshold
         updatedPass.lastUpdated = .now
         stampBalances[updatedPass.customerId] = updatedPass.currentStamps
+        customerPasses[updatedPass.passSerialNumber] = updatedPass
         return TapResult(
             id: UUID(),
             action: .redeemReward,
@@ -155,6 +158,18 @@ final class MockPocketStampService: PocketStampService {
         }
 
         return event
+    }
+
+    func loadCustomerPassDetail(passSerialNumber: String) async throws -> CustomerPassDetail {
+        guard let customerPass = customerPasses[passSerialNumber] else {
+            throw APIError.invalidResponse
+        }
+        let events = stampEvents.filter { $0.customerId == customerPass.customerId }
+        return CustomerPassDetail(customerPass: customerPass, recentActivity: events)
+    }
+
+    func loadActivity(for merchant: Merchant, location: Location) async throws -> [StampEvent] {
+        stampEvents
     }
 
     private func validationResult(

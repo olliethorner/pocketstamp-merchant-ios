@@ -1,138 +1,82 @@
 import Foundation
 
-// Backend contract DTOs for the future PocketStamp API. NFC reading remains separate:
-// PassReader produces a CustomerPass, then PocketStampService sends stamp or redeem
-// actions to the backend. Wallet pass updates will be issued server-side after balances change.
-//
-// Intended endpoints:
-// POST /api/merchant/login
-// POST /api/devices/register
-// POST /api/taps/stamp
-// POST /api/taps/redeem
-// GET  /api/merchant/activity
-// GET  /api/customer-pass/{passSerialNumber}
-
-struct MerchantLoginRequest: Codable, Sendable {
-    let email: String
-    let password: String
-}
-
-struct MerchantLoginResponse: Codable, Sendable {
-    let accessToken: String
-    let user: MerchantUserDTO
-    let merchant: MerchantDTO
-    let defaultLocation: LocationDTO
-}
-
 struct DeviceRegistrationRequest: Codable, Sendable {
-    let merchantId: UUID
-    let locationId: UUID
+    let merchantId: String
+    let locationId: String
     let deviceName: String
+    let deviceToken: String
 }
 
 struct DeviceRegistrationResponse: Codable, Sendable {
-    let device: RegisteredDeviceDTO
+    let device: RegisteredDeviceDTO?
+    let id: String?
+    let merchantId: String?
+    let locationId: String?
+    let deviceName: String?
+    let displayName: String?
+    let status: String?
+    let registeredAt: Date?
 }
 
-struct AddStampRequest: Codable, Sendable {
-    let merchantId: UUID
-    let locationId: UUID
-    let deviceId: UUID
+struct TapMutationRequest: Codable, Sendable {
+    let deviceToken: String
     let passSerialNumber: String
+    let idempotencyKey: String
 }
 
-struct AddStampResponse: Codable, Sendable {
-    let result: TapResultDTO
-}
-
-struct RedeemRewardRequest: Codable, Sendable {
-    let merchantId: UUID
-    let locationId: UUID
-    let deviceId: UUID
-    let passSerialNumber: String
-}
-
-struct RedeemRewardResponse: Codable, Sendable {
-    let result: TapResultDTO
-}
-
-struct ActivityLogResponse: Codable, Sendable {
-    let events: [StampEventDTO]
+struct TapMutationResponse: Codable, Sendable {
+    let ok: Bool?
+    let result: String?
+    let customerPass: CustomerPassDTO?
+    let message: String?
 }
 
 struct CustomerPassDetailResponse: Codable, Sendable {
     let customerPass: CustomerPassDTO
-    let recentActivity: [StampEventDTO]
+    let recentActivity: [StampEventDTO]?
 }
 
-struct MerchantUserDTO: Codable, Sendable {
-    let id: UUID
-    let merchantId: UUID
-    let email: String
-    let displayName: String
-}
-
-struct MerchantDTO: Codable, Sendable {
-    let id: UUID
-    let displayName: String
-    let contactEmail: String
-    let loyaltyProgram: LoyaltyProgramDTO
-}
-
-struct LocationDTO: Codable, Sendable {
-    let id: UUID
-    let merchantId: UUID
-    let displayName: String
-    let address: String
+struct ActivityLogResponse: Codable, Sendable {
+    let events: [StampEventDTO]?
+    let activity: [StampEventDTO]?
 }
 
 struct RegisteredDeviceDTO: Codable, Sendable {
-    let id: UUID
-    let merchantId: UUID
-    let locationId: UUID
-    let displayName: String
-    let status: String
-    let registeredAt: Date
-}
-
-struct LoyaltyProgramDTO: Codable, Sendable {
-    let id: UUID
-    let name: String
-    let rewardName: String
-    let rewardThreshold: Int
+    let id: String?
+    let merchantId: String?
+    let locationId: String?
+    let deviceName: String?
+    let displayName: String?
+    let status: String?
+    let registeredAt: Date?
 }
 
 struct CustomerPassDTO: Codable, Sendable {
-    let customerId: UUID
-    let customerName: String
+    let customerId: String?
+    let customerName: String?
     let passSerialNumber: String
-    let merchantId: UUID
-    let locationId: UUID?
+    let merchantId: String?
+    let locationId: String?
     let currentStamps: Int
     let rewardThreshold: Int
     let isActive: Bool
-    let lastUpdated: Date
-}
-
-struct TapResultDTO: Codable, Sendable {
-    let id: UUID
-    let action: String
-    let state: String
-    let customerPass: CustomerPassDTO
-    let isSuccess: Bool
-    let message: String
+    let lastUpdated: Date?
 }
 
 struct StampEventDTO: Codable, Sendable {
-    let id: UUID
-    let merchantId: UUID
-    let locationId: UUID
-    let customerId: UUID
-    let customerName: String
-    let action: String
-    let result: String
-    let stampBalance: Int
-    let deviceId: UUID
-    let deviceName: String
-    let createdAt: Date
+    let id: String?
+    let merchantId: String?
+    let locationId: String?
+    let customerId: String?
+    let customerName: String?
+    let action: String?
+    let result: String?
+    let state: String?
+    let stampBalance: Int?
+    let currentStamps: Int?
+    let balanceAfter: Int?
+    let deviceId: String?
+    let merchantDeviceId: String?
+    let deviceName: String?
+    let createdAt: Date?
 }

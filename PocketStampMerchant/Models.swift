@@ -170,6 +170,11 @@ struct TapResult: Identifiable, Equatable, Sendable {
     let message: String
 }
 
+struct CustomerPassDetail: Equatable, Sendable {
+    let customerPass: CustomerPass
+    let recentActivity: [StampEvent]
+}
+
 enum PocketStampError: LocalizedError {
     case invalidCredentials
 

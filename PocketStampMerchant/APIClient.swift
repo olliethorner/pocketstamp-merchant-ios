@@ -1,7 +1,5 @@
 import Foundation
 
-// Lightweight networking foundation for the future Railway / Supabase-backed API.
-// The placeholder URL is intentionally not used while MockPocketStampService is active.
 struct APIClient {
     let baseURL: URL
     private let session: URLSession
@@ -9,7 +7,7 @@ struct APIClient {
     private let decoder: JSONDecoder
 
     init(
-        baseURL: URL = URL(string: "https://api.getpocketstamp.com")!,
+        baseURL: URL = AppEnvironment.localBackendBaseURL,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL
@@ -20,7 +18,23 @@ struct APIClient {
         self.encoder = encoder
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer().decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatter.date(from: value) {
+                return date
+            }
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: value) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: try decoder.singleValueContainer(),
+                debugDescription: "Expected an ISO 8601 date."
+            )
+        }
         self.decoder = decoder
     }
 
@@ -53,13 +67,14 @@ struct APIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.httpStatus(httpResponse.statusCode)
+            let message = String(data: data, encoding: .utf8)
+            throw APIError.httpStatus(httpResponse.statusCode, message)
         }
 
         do {
             return try decoder.decode(Response.self, from: data)
         } catch {
-            throw APIError.decodingFailed
+            throw APIError.decodingFailed(error.localizedDescription)
         }
     }
 }
@@ -72,17 +87,20 @@ enum HTTPMethod: String {
 enum APIError: LocalizedError {
     case invalidURL
     case invalidResponse
-    case httpStatus(Int)
-    case decodingFailed
-    case remoteServiceNotConfigured
+    case httpStatus(Int, String?)
+    case decodingFailed(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: "The PocketStamp API URL is invalid."
         case .invalidResponse: "The PocketStamp API returned an invalid response."
-        case let .httpStatus(code): "The PocketStamp API returned HTTP \(code)."
-        case .decodingFailed: "The PocketStamp API response could not be read."
-        case .remoteServiceNotConfigured: "Remote PocketStamp service is not configured yet."
+        case let .httpStatus(code, message):
+            if let message, !message.isEmpty {
+                "The PocketStamp API returned HTTP \(code): \(message)"
+            } else {
+                "The PocketStamp API returned HTTP \(code)."
+            }
+        case let .decodingFailed(message): "The PocketStamp API response could not be read: \(message)"
         }
     }
 }

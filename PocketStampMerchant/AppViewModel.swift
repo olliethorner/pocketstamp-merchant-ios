@@ -23,8 +23,8 @@ final class AppViewModel: ObservableObject {
         service: PocketStampService? = nil
     ) {
         // Swap MockPassReader for an NFCPassReader here after entitlement approval.
-        self.passReader = passReader ?? MockPassReader()
-        self.service = service ?? MockPocketStampService()
+        self.passReader = passReader ?? AppEnvironment.makePassReader()
+        self.service = service ?? AppEnvironment.makePocketStampService()
     }
 
     func login(email: String, password: String) async {
@@ -41,6 +41,7 @@ final class AppViewModel: ObservableObject {
             self.location = location
             self.device = device
             isAuthenticated = true
+            activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -94,6 +95,9 @@ final class AppViewModel: ObservableObject {
             latestCustomerPass = result.customerPass
             latestTapResult = result
             activityLog.insert(activity, at: 0)
+            if let remoteActivity = try? await service.loadActivity(for: merchant, location: location) {
+                activityLog = remoteActivity
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -101,10 +105,35 @@ final class AppViewModel: ObservableObject {
         isBusy = false
     }
 
+    func refreshedResultForDetail(_ result: TapResult) async -> TapResult {
+        do {
+            let detail = try await service.loadCustomerPassDetail(
+                passSerialNumber: result.customerPass.passSerialNumber
+            )
+            activityLog = mergedActivity(detail.recentActivity, with: activityLog)
+            return TapResult(
+                id: result.id,
+                action: result.action,
+                state: result.state,
+                customerPass: detail.customerPass,
+                isSuccess: result.isSuccess,
+                message: result.message
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            return result
+        }
+    }
+
     func resetLatestResult() {
         latestResult = nil
         latestCustomerPass = nil
         latestTapResult = nil
         errorMessage = nil
+    }
+
+    private func mergedActivity(_ first: [StampEvent], with second: [StampEvent]) -> [StampEvent] {
+        var seen = Set<UUID>()
+        return (first + second).filter { seen.insert($0.id).inserted }
     }
 }

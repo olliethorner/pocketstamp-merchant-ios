@@ -20,7 +20,9 @@ struct MerchantHomeView: View {
 
                         if let latestResult = viewModel.latestResult {
                             CustomerResultCard(result: latestResult) {
-                                detailResult = latestResult
+                                Task {
+                                    detailResult = await viewModel.refreshedResultForDetail(latestResult)
+                                }
                             }
                                 .transition(.move(edge: .top).combined(with: .opacity))
                         }
