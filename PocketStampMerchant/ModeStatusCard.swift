@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ModeStatusCard: View {
     let mode: MerchantMode
-    let isBusy: Bool
+    let tapStatusText: String?
 
     var body: some View {
         HStack(spacing: 16) {
@@ -22,7 +22,7 @@ struct ModeStatusCard: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                Text(isBusy ? "Reading customer pass..." : mode.readyMessage)
+                Text(tapStatusText ?? mode.readyMessage)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(accentColor)
             }

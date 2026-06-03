@@ -1,6 +1,18 @@
 import Foundation
 import Combine
 
+enum TapProcessingStage {
+    case readingPass
+    case updatingBalance
+
+    var statusText: String {
+        switch self {
+        case .readingPass: "Reading Wallet pass…"
+        case .updatingBalance: "Updating loyalty balance…"
+        }
+    }
+}
+
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published private(set) var isAuthenticated = false
@@ -13,10 +25,19 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var latestTapResult: TapResult?
     @Published private(set) var activityLog: [StampEvent] = []
     @Published private(set) var isBusy = false
+    @Published private(set) var tapProcessingStage: TapProcessingStage?
     @Published var errorMessage: String?
 
     private let passReader: PassReader
     private let service: PocketStampService
+
+    var isProcessingTap: Bool {
+        tapProcessingStage != nil
+    }
+
+    var tapStatusText: String? {
+        tapProcessingStage?.statusText
+    }
 
     init(
         passReader: PassReader? = nil,
@@ -68,14 +89,25 @@ final class AppViewModel: ObservableObject {
     }
 
     func handleCustomerTap() async {
-        guard let merchant, let location, let device else { return }
+        guard !isProcessingTap, let merchant, let location, let device else { return }
 
+        print("TAP_UI_STARTED")
         isBusy = true
+        tapProcessingStage = .readingPass
         errorMessage = nil
         latestResult = nil
 
+        defer {
+            tapProcessingStage = nil
+            isBusy = false
+            print("TAP_UI_FINISHED")
+        }
+
         do {
             let customerPass = try await passReader.readCustomerPass(for: merchant, location: location)
+            print("PASS_READER_COMPLETED")
+            tapProcessingStage = .updatingBalance
+            print("SERVICE_TAP_STARTED")
             let result: TapResult
 
             switch mode {
@@ -85,24 +117,23 @@ final class AppViewModel: ObservableObject {
                 result = try await service.redeemReward(for: customerPass, merchant: merchant, location: location)
             }
 
-            let activity = try await service.logActivity(
-                for: result,
-                merchant: merchant,
-                location: location,
-                device: device
-            )
+            print("SERVICE_TAP_COMPLETED")
             latestResult = result
             latestCustomerPass = result.customerPass
             latestTapResult = result
-            activityLog.insert(activity, at: 0)
-            if let remoteActivity = try? await service.loadActivity(for: merchant, location: location) {
-                activityLog = remoteActivity
+            print("UI_RESULT_UPDATED")
+
+            Task { [weak self] in
+                await self?.refreshActivity(
+                    for: result,
+                    merchant: merchant,
+                    location: location,
+                    device: device
+                )
             }
         } catch {
             errorMessage = error.localizedDescription
         }
-
-        isBusy = false
     }
 
     func refreshedResultForDetail(_ result: TapResult) async -> TapResult {
@@ -135,5 +166,30 @@ final class AppViewModel: ObservableObject {
     private func mergedActivity(_ first: [StampEvent], with second: [StampEvent]) -> [StampEvent] {
         var seen = Set<UUID>()
         return (first + second).filter { seen.insert($0.id).inserted }
+    }
+
+    private func refreshActivity(
+        for result: TapResult,
+        merchant: Merchant,
+        location: Location,
+        device: RegisteredDevice
+    ) async {
+        print("ACTIVITY_REFRESH_STARTED")
+        defer { print("ACTIVITY_REFRESH_COMPLETED") }
+
+        do {
+            let activity = try await service.logActivity(
+                for: result,
+                merchant: merchant,
+                location: location,
+                device: device
+            )
+            activityLog.insert(activity, at: 0)
+            if let remoteActivity = try? await service.loadActivity(for: merchant, location: location) {
+                activityLog = remoteActivity
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

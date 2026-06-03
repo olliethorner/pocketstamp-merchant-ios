@@ -14,7 +14,7 @@ struct MerchantHomeView: View {
                 ScrollView {
                     VStack(spacing: 18) {
                         merchantSummary
-                        ModeStatusCard(mode: viewModel.mode, isBusy: viewModel.isBusy)
+                        ModeStatusCard(mode: viewModel.mode, tapStatusText: viewModel.tapStatusText)
                         simulateTapButton
                         switchModeButton
 
@@ -111,7 +111,7 @@ struct MerchantHomeView: View {
                         .font(.system(size: 32))
                 }
 
-                Text(viewModel.isBusy ? "Reading Wallet Pass..." : "Simulate Customer Tap")
+                Text(viewModel.tapStatusText ?? "Simulate Customer Tap")
                     .font(.headline)
 
                 Text("Mock Wallet tap - future NFC reader plugs in here.")
@@ -125,7 +125,7 @@ struct MerchantHomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 22))
             .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 7)
         }
-        .disabled(viewModel.isBusy)
+        .disabled(viewModel.isProcessingTap)
     }
 
     private var deviceStatusText: String {
