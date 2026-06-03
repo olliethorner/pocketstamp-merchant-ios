@@ -3,21 +3,44 @@ import Foundation
 enum AppBackendMode {
     case mock
     case local
+    case railway
 }
 
 enum AppEnvironment {
-    // Switch this to .mock to run the original fully in-memory prototype.
-    static let backendMode: AppBackendMode = .local
+    // Switch to .mock for the original fully in-memory prototype.
+    // Switch to .local for simulator testing with node server.js running on the Mac.
+    // Switch to .railway for deployed backend testing.
+    static let backendMode: AppBackendMode = .railway
 
-    // Simulator can usually access Mac localhost at http://localhost:3000.
-    // A real iPhone will need the Mac LAN IP or Railway URL later.
+    // Simulator can usually access a Mac-hosted local backend at this URL.
     static let localBackendBaseURL = URL(string: "http://localhost:3000")!
+    static let railwayBackendBaseURL = URL(string: "https://pocketstamp-wallet-backend-production.up.railway.app")!
+
+    static var selectedBackendBaseURL: URL? {
+        switch backendMode {
+        case .mock:
+            nil
+        case .local:
+            localBackendBaseURL
+        case .railway:
+            railwayBackendBaseURL
+        }
+    }
+
+    static var remoteBackendBaseURL: URL {
+        guard let selectedBackendBaseURL else {
+            preconditionFailure("Mock mode does not use a remote backend URL.")
+        }
+
+        return selectedBackendBaseURL
+    }
 
     static func makePassReader() -> PassReader {
         switch backendMode {
         case .mock:
             MockPassReader()
-        case .local:
+        case .local, .railway:
+            // Real NFC remains mocked until Apple entitlement approval.
             LocalBackendMockPassReader()
         }
     }
@@ -26,8 +49,8 @@ enum AppEnvironment {
         switch backendMode {
         case .mock:
             MockPocketStampService()
-        case .local:
-            RemotePocketStampService(apiClient: APIClient(baseURL: localBackendBaseURL))
+        case .local, .railway:
+            RemotePocketStampService(apiClient: APIClient(baseURL: remoteBackendBaseURL))
         }
     }
 }

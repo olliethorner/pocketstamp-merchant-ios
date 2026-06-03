@@ -7,7 +7,7 @@ struct APIClient {
     private let decoder: JSONDecoder
 
     init(
-        baseURL: URL = AppEnvironment.localBackendBaseURL,
+        baseURL: URL = AppEnvironment.remoteBackendBaseURL,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL

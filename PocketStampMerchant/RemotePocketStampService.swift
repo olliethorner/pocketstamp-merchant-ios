@@ -24,7 +24,7 @@ final class RemotePocketStampService: PocketStampService {
             throw PocketStampError.invalidCredentials
         }
 
-        // The local backend currently exposes device and tap endpoints, not merchant auth.
+        // The selected backend currently exposes device and tap endpoints, not merchant auth.
         return MerchantUser(
             id: UUID(),
             merchantId: LocalBackend.merchantId,

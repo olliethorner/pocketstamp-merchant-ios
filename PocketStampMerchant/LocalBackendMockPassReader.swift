@@ -2,7 +2,7 @@ import Foundation
 
 final class LocalBackendMockPassReader: PassReader {
     func readCustomerPass(for merchant: Merchant, location: Location) async throws -> CustomerPass {
-        // NFC stays mocked while local integration uses the verified backend Kitchen pass.
+        // NFC stays mocked while local/Railway integration uses the verified backend Kitchen pass.
         try await Task.sleep(for: .milliseconds(650))
 
         return CustomerPass(
