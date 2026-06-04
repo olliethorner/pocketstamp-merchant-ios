@@ -10,7 +10,7 @@ struct ActivityLogView: View {
                 .foregroundStyle(PocketStampTheme.espresso)
 
             if events.isEmpty {
-                Text("Customer tap activity will appear here.")
+                Text("Wallet tap activity will appear here.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
@@ -28,7 +28,7 @@ struct ActivityLogView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(event.result.activityDescription)
                                 .font(.subheadline.weight(.semibold))
-                            Text("\(event.customerName) - \(event.deviceName) - \(event.stampBalance) stamps")
+                            Text("\(event.customerName) - \(event.stampBalance) stamps")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }

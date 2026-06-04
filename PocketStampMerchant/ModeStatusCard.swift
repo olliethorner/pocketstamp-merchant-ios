@@ -18,7 +18,7 @@ struct ModeStatusCard: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(PocketStampTheme.espresso)
 
-                Text(mode == .stamp ? "Every valid tap adds 1 stamp." : "Tap customer Wallet pass to redeem reward.")
+                Text(mode.actionDescription)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 

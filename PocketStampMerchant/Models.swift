@@ -120,15 +120,21 @@ enum MerchantMode: String, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .stamp: "Stamp Mode ON"
+        case .stamp: "Stamp Mode"
         case .redeem: "Redeem Mode"
         }
     }
 
     var readyMessage: String {
         switch self {
-        case .stamp: "Ready for customer tap."
-        case .redeem: "Ready to redeem reward."
+        case .stamp, .redeem: "Ready for Wallet tap."
+        }
+    }
+
+    var actionDescription: String {
+        switch self {
+        case .stamp: "Tap a customer pass to add 1 stamp."
+        case .redeem: "Tap a customer pass to redeem an available reward."
         }
     }
 }
@@ -168,13 +174,13 @@ enum TapResultState: String, Sendable {
 
     var activityDescription: String {
         switch self {
-        case .stampAdded: "+1 stamp"
-        case .rewardAvailable: "+1 stamp - reward available"
-        case .rewardRedeemed: "reward redeemed"
-        case .notEnoughStamps: "declined: not enough stamps"
-        case .wrongMerchant: "declined: wrong merchant"
-        case .inactivePass: "declined: inactive pass"
-        case .error: "error"
+        case .stampAdded: "Stamp added"
+        case .rewardAvailable: "Reward available"
+        case .rewardRedeemed: "Reward redeemed"
+        case .notEnoughStamps: "Not enough stamps"
+        case .wrongMerchant: "Wrong merchant"
+        case .inactivePass: "Inactive pass"
+        case .error: "Something went wrong"
         }
     }
 }
