@@ -13,8 +13,9 @@ struct MerchantHomeView: View {
 
                 ScrollView {
                     VStack(spacing: 18) {
-                        merchantSummary
+                        merchantDashboard
                         ModeStatusCard(mode: viewModel.mode, tapStatusText: viewModel.tapStatusText)
+                        demoCustomerSelector
                         simulateTapButton
                         switchModeButton
 
@@ -63,39 +64,91 @@ struct MerchantHomeView: View {
         }
     }
 
-    private var merchantSummary: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "cup.and.saucer.fill")
-                .font(.title2)
-                .foregroundStyle(PocketStampTheme.brown)
-                .frame(width: 48, height: 48)
-                .background(PocketStampTheme.caramel.opacity(0.35))
-                .clipShape(Circle())
+    private var merchantDashboard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "cup.and.saucer.fill")
+                    .font(.title3)
+                    .foregroundStyle(PocketStampTheme.brown)
+                    .frame(width: 42, height: 42)
+                    .background(PocketStampTheme.caramel.opacity(0.35))
+                    .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(viewModel.merchant?.name ?? "Merchant")
-                    .font(.headline)
-                    .foregroundStyle(PocketStampTheme.espresso)
-                Text(viewModel.location?.name ?? "Location")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(deviceStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kitchen at the Wharf")
+                        .font(.headline)
+                        .foregroundStyle(PocketStampTheme.espresso)
+                    Text("Merchant dashboard")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Text(deviceBadgeText)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(viewModel.device == nil ? .orange : .green)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background((viewModel.device == nil ? Color.orange : Color.green).opacity(0.12))
+                    .clipShape(Capsule())
             }
 
-            Spacer()
-
-            Text("READY")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.green)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(.green.opacity(0.12))
-                .clipShape(Capsule())
+            LazyVGrid(columns: dashboardColumns, alignment: .leading, spacing: 10) {
+                dashboardItem(title: "Merchant", value: viewModel.merchant?.name ?? "Kitchen at the Wharf")
+                dashboardItem(title: "Location", value: viewModel.location?.name ?? "Main Till")
+                dashboardItem(title: "Backend", value: AppEnvironment.backendMode.displayName)
+                dashboardItem(title: "Device", value: deviceBadgeText)
+                dashboardItem(title: "Current mode", value: viewModel.mode == .stamp ? "Stamp" : "Redeem")
+            }
         }
         .padding(16)
         .pocketStampCard()
+    }
+
+    private var demoCustomerSelector: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "person.crop.rectangle.stack.fill")
+                    .font(.title3)
+                    .foregroundStyle(PocketStampTheme.brown)
+                    .frame(width: 38, height: 38)
+                    .background(PocketStampTheme.caramel.opacity(0.26))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Demo tap customer: \(viewModel.selectedDemoCustomer.displayName)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PocketStampTheme.espresso)
+                    Text(viewModel.selectedDemoCustomer.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                Menu {
+                    ForEach(viewModel.availableDemoCustomers) { customer in
+                        Button {
+                            viewModel.selectDemoCustomer(customer)
+                        } label: {
+                            Text(customer.displayName)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(PocketStampTheme.espresso)
+                        .frame(width: 34, height: 34)
+                        .background(.white.opacity(0.86))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .disabled(viewModel.availableDemoCustomers.count <= 1 || viewModel.isBusy)
+            }
+        }
+        .padding(14)
+        .background(PocketStampTheme.caramel.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private var simulateTapButton: some View {
@@ -114,7 +167,7 @@ struct MerchantHomeView: View {
                 Text(viewModel.tapStatusText ?? "Simulate Customer Tap")
                     .font(.headline)
 
-                Text("Mock Wallet tap - future NFC reader plugs in here.")
+                Text(viewModel.selectedDemoCustomer.displayName)
                     .font(.caption)
                     .opacity(0.8)
             }
@@ -134,6 +187,34 @@ struct MerchantHomeView: View {
         }
 
         return "\(device.name) - \(device.status.displayName)"
+    }
+
+    private var deviceBadgeText: String {
+        viewModel.device == nil ? "Not registered" : "Registered"
+    }
+
+    private var dashboardColumns: [GridItem] {
+        [
+            GridItem(.adaptive(minimum: 138), spacing: 10)
+        ]
+    }
+
+    private func dashboardItem(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(PocketStampTheme.espresso)
+                .lineLimit(2)
+                .minimumScaleFactor(0.82)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(PocketStampTheme.cream.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     private var switchModeButton: some View {

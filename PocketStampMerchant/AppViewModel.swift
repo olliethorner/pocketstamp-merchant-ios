@@ -26,6 +26,8 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var activityLog: [StampEvent] = []
     @Published private(set) var isBusy = false
     @Published private(set) var tapProcessingStage: TapProcessingStage?
+    @Published private(set) var availableDemoCustomers = DemoCustomer.all
+    @Published private(set) var selectedDemoCustomer = DemoCustomer.railwayTestCustomer
     @Published var errorMessage: String?
 
     private let passReader: PassReader
@@ -88,6 +90,11 @@ final class AppViewModel: ObservableObject {
         resetLatestResult()
     }
 
+    func selectDemoCustomer(_ demoCustomer: DemoCustomer) {
+        selectedDemoCustomer = demoCustomer
+        resetLatestResult()
+    }
+
     func handleCustomerTap() async {
         guard !isProcessingTap, let merchant, let location, let device else { return }
 
@@ -104,7 +111,11 @@ final class AppViewModel: ObservableObject {
         }
 
         do {
-            let customerPass = try await passReader.readCustomerPass(for: merchant, location: location)
+            let customerPass = try await passReader.readCustomerPass(
+                for: merchant,
+                location: location,
+                demoCustomer: selectedDemoCustomer
+            )
             print("PASS_READER_COMPLETED")
             tapProcessingStage = .updatingBalance
             print("SERVICE_TAP_STARTED")

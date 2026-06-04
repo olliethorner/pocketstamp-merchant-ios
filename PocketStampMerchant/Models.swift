@@ -64,6 +64,24 @@ struct CustomerPass: Identifiable, Equatable, Sendable {
     var id: UUID { customerId }
 }
 
+struct DemoCustomer: Identifiable, Equatable, Sendable {
+    let id: String
+    let displayName: String
+    let passSerialNumber: String
+    let subtitle: String
+
+    static let railwayTestCustomer = DemoCustomer(
+        id: "railway-test-customer",
+        displayName: "Test Customer",
+        passSerialNumber: "kitchen-wharf-test-customer-1775637512162",
+        subtitle: "Railway demo pass"
+    )
+
+    static let all: [DemoCustomer] = [
+        .railwayTestCustomer
+    ]
+}
+
 struct LoyaltyProgram: Identifiable, Equatable, Sendable {
     let id: UUID
     let name: String

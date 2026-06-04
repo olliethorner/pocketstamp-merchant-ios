@@ -4,6 +4,14 @@ enum AppBackendMode {
     case mock
     case local
     case railway
+
+    var displayName: String {
+        switch self {
+        case .mock: "Mock"
+        case .local: "Local"
+        case .railway: "Railway"
+        }
+    }
 }
 
 enum AppEnvironment {
