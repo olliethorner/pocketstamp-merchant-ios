@@ -26,8 +26,10 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var activityLog: [StampEvent] = []
     @Published private(set) var isBusy = false
     @Published private(set) var tapProcessingStage: TapProcessingStage?
-    @Published private(set) var availableDemoCustomers = DemoCustomer.all
-    @Published private(set) var selectedDemoCustomer = DemoCustomer.railwayTestCustomer
+    @Published private(set) var availableDemoMerchants = DemoMerchant.all
+    @Published private(set) var selectedDemoMerchant = DemoMerchant.kitchenAtTheWharf
+    @Published private(set) var availableDemoCustomers = DemoMerchant.kitchenAtTheWharf.demoCustomers
+    @Published private(set) var selectedDemoCustomer = DemoMerchant.kitchenAtTheWharf.demoCustomers[0]
     @Published var errorMessage: String?
 
     private let passReader: PassReader
@@ -56,15 +58,8 @@ final class AppViewModel: ObservableObject {
 
         do {
             let user = try await service.authenticate(email: email, password: password)
-            let merchant = try await service.loadMerchant(for: user)
-            let location = try await service.loadLocation(for: merchant)
-            let device = try await service.registerDevice(for: merchant, location: location)
-
-            self.merchant = merchant
-            self.location = location
-            self.device = device
             isAuthenticated = true
-            activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
+            try await activateSelectedDemoMerchant(contactEmail: user.email)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -93,6 +88,27 @@ final class AppViewModel: ObservableObject {
     func selectDemoCustomer(_ demoCustomer: DemoCustomer) {
         selectedDemoCustomer = demoCustomer
         resetLatestResult()
+    }
+
+    func selectDemoMerchant(_ demoMerchant: DemoMerchant) {
+        guard selectedDemoMerchant != demoMerchant else { return }
+
+        let contactEmail = merchant?.contactEmail ?? "counter@pocketstamp.demo"
+        selectedDemoMerchant = demoMerchant
+        availableDemoCustomers = demoMerchant.demoCustomers
+        selectedDemoCustomer = demoMerchant.demoCustomers[0]
+        resetLatestResult()
+        activityLog = []
+
+        guard isAuthenticated else { return }
+
+        Task {
+            do {
+                try await activateSelectedDemoMerchant(contactEmail: contactEmail)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     func handleCustomerTap() async {
@@ -177,6 +193,21 @@ final class AppViewModel: ObservableObject {
     private func mergedActivity(_ first: [StampEvent], with second: [StampEvent]) -> [StampEvent] {
         var seen = Set<UUID>()
         return (first + second).filter { seen.insert($0.id).inserted }
+    }
+
+    private func activateSelectedDemoMerchant(contactEmail: String) async throws {
+        isBusy = true
+        errorMessage = nil
+        defer { isBusy = false }
+
+        let merchant = selectedDemoMerchant.makeMerchant(contactEmail: contactEmail)
+        let location = selectedDemoMerchant.makeLocation(for: merchant)
+        let device = try await service.registerDevice(for: merchant, location: location)
+
+        self.merchant = merchant
+        self.location = location
+        self.device = device
+        activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
     }
 
     private func refreshActivity(

@@ -58,10 +58,10 @@ final class RemotePocketStampService: PocketStampService {
 
     func registerDevice(for merchant: Merchant, location: Location) async throws -> RegisteredDevice {
         let request = DeviceRegistrationRequest(
-            merchantId: LocalBackend.merchantSlug,
-            locationId: LocalBackend.locationSlug,
-            deviceName: LocalBackend.deviceName,
-            deviceToken: LocalBackend.deviceToken
+            merchantId: backendMerchantId(for: merchant),
+            locationId: backendLocationId(for: location),
+            deviceName: deviceName(for: location),
+            deviceToken: backendDeviceToken(for: merchant, location: location)
         )
         let response: DeviceRegistrationResponse = try await apiClient.send(
             "/api/devices/register",
@@ -82,7 +82,7 @@ final class RemotePocketStampService: PocketStampService {
             id: uuid(from: dto.id, fallback: UUID()),
             merchantId: merchant.id,
             locationId: location.id,
-            name: dto.displayName ?? dto.deviceName ?? LocalBackend.deviceName,
+            name: dto.displayName ?? dto.deviceName ?? deviceName(for: location),
             status: .registered,
             registeredAt: dto.registeredAt ?? .now
         )
@@ -93,7 +93,13 @@ final class RemotePocketStampService: PocketStampService {
         merchant: Merchant,
         location: Location
     ) async throws -> TapResult {
-        try await mutatePass(path: "/api/taps/stamp", customerPass: customerPass, fallbackAction: .addStamp)
+        try await mutatePass(
+            path: "/api/taps/stamp",
+            customerPass: customerPass,
+            merchant: merchant,
+            location: location,
+            fallbackAction: .addStamp
+        )
     }
 
     func redeemReward(
@@ -101,7 +107,13 @@ final class RemotePocketStampService: PocketStampService {
         merchant: Merchant,
         location: Location
     ) async throws -> TapResult {
-        try await mutatePass(path: "/api/taps/redeem", customerPass: customerPass, fallbackAction: .redeemReward)
+        try await mutatePass(
+            path: "/api/taps/redeem",
+            customerPass: customerPass,
+            merchant: merchant,
+            location: location,
+            fallbackAction: .redeemReward
+        )
     }
 
     func logActivity(
@@ -138,8 +150,8 @@ final class RemotePocketStampService: PocketStampService {
         var components = URLComponents()
         components.path = "/api/merchant/activity"
         components.queryItems = [
-            URLQueryItem(name: "merchantId", value: LocalBackend.merchantSlug),
-            URLQueryItem(name: "locationId", value: LocalBackend.locationSlug),
+            URLQueryItem(name: "merchantId", value: backendMerchantId(for: merchant)),
+            URLQueryItem(name: "locationId", value: backendLocationId(for: location)),
             URLQueryItem(name: "limit", value: "50")
         ]
         let response: ActivityLogResponse = try await apiClient.send(components.string ?? "/api/merchant/activity")
@@ -149,10 +161,12 @@ final class RemotePocketStampService: PocketStampService {
     private func mutatePass(
         path: String,
         customerPass: CustomerPass,
+        merchant: Merchant,
+        location: Location,
         fallbackAction: TapAction
     ) async throws -> TapResult {
         let request = TapMutationRequest(
-            deviceToken: LocalBackend.deviceToken,
+            deviceToken: backendDeviceToken(for: merchant, location: location),
             passSerialNumber: customerPass.passSerialNumber,
             idempotencyKey: UUID().uuidString
         )
@@ -220,6 +234,22 @@ final class RemotePocketStampService: PocketStampService {
     private func fallbackState(for action: TapAction, isSuccess: Bool) -> TapResultState {
         guard isSuccess else { return .error }
         return action == .addStamp ? .stampAdded : .rewardRedeemed
+    }
+
+    private func backendMerchantId(for merchant: Merchant) -> String {
+        merchant.backendId ?? LocalBackend.merchantSlug
+    }
+
+    private func backendLocationId(for location: Location) -> String {
+        location.backendId ?? LocalBackend.locationSlug
+    }
+
+    private func backendDeviceToken(for merchant: Merchant, location: Location) -> String {
+        location.backendDeviceToken ?? merchant.backendDeviceToken ?? LocalBackend.deviceToken
+    }
+
+    private func deviceName(for location: Location) -> String {
+        "\(location.name) iPhone"
     }
 
     private func uuid(from value: String?, fallback: UUID) -> UUID {

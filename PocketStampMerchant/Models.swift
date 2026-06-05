@@ -5,8 +5,26 @@ struct Merchant: Identifiable, Equatable, Sendable {
     let name: String
     let contactEmail: String
     let loyaltyProgram: LoyaltyProgram
+    let backendId: String?
+    let backendDeviceToken: String?
 
     var displayName: String { name }
+
+    init(
+        id: UUID,
+        name: String,
+        contactEmail: String,
+        loyaltyProgram: LoyaltyProgram,
+        backendId: String? = nil,
+        backendDeviceToken: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.contactEmail = contactEmail
+        self.loyaltyProgram = loyaltyProgram
+        self.backendId = backendId
+        self.backendDeviceToken = backendDeviceToken
+    }
 }
 
 struct Location: Identifiable, Equatable, Sendable {
@@ -14,8 +32,26 @@ struct Location: Identifiable, Equatable, Sendable {
     let merchantId: UUID
     let name: String
     let address: String
+    let backendId: String?
+    let backendDeviceToken: String?
 
     var displayName: String { name }
+
+    init(
+        id: UUID,
+        merchantId: UUID,
+        name: String,
+        address: String,
+        backendId: String? = nil,
+        backendDeviceToken: String? = nil
+    ) {
+        self.id = id
+        self.merchantId = merchantId
+        self.name = name
+        self.address = address
+        self.backendId = backendId
+        self.backendDeviceToken = backendDeviceToken
+    }
 }
 
 struct MerchantUser: Identifiable, Equatable, Sendable {
@@ -82,11 +118,119 @@ struct DemoCustomer: Identifiable, Equatable, Sendable {
     ]
 }
 
+struct DemoMerchant: Identifiable, Equatable, Sendable {
+    let id: String
+    let displayName: String
+    let locationId: String
+    let locationName: String
+    let loyaltyProgramId: String
+    let backendDeviceToken: String
+    let subtitle: String
+    let demoCustomers: [DemoCustomer]
+
+    static let kitchenAtTheWharf = DemoMerchant(
+        id: "kitchen-at-the-wharf",
+        displayName: "Kitchen at the Wharf",
+        locationId: "kitchen-at-the-wharf-main",
+        locationName: "Main Till",
+        loyaltyProgramId: "kitchen-at-the-wharf-coffee",
+        backendDeviceToken: "demo-main-till-iphone",
+        subtitle: "Main Till",
+        demoCustomers: [
+            .railwayTestCustomer
+        ]
+    )
+
+    static let mrMiles = DemoMerchant(
+        id: "mr-miles",
+        displayName: "Mr Miles",
+        locationId: "mr-miles-taunton",
+        locationName: "Taunton",
+        loyaltyProgramId: "mr-miles-coffee",
+        backendDeviceToken: "mr-miles-main-till-iphone",
+        subtitle: "Taunton",
+        demoCustomers: [
+            DemoCustomer(
+                id: "mr-miles-demo-customer",
+                displayName: "Mr Miles Demo Customer",
+                passSerialNumber: "mr-miles-demo-customer",
+                subtitle: "Railway demo pass"
+            )
+        ]
+    )
+
+    static let all: [DemoMerchant] = [
+        .kitchenAtTheWharf,
+        .mrMiles
+    ]
+
+    func makeMerchant(contactEmail: String) -> Merchant {
+        Merchant(
+            id: stableUUID(from: id),
+            name: displayName,
+            contactEmail: contactEmail,
+            loyaltyProgram: LoyaltyProgram(
+                id: stableUUID(from: loyaltyProgramId),
+                name: "Coffee Card",
+                rewardName: "Free coffee",
+                rewardThreshold: 10,
+                backendId: loyaltyProgramId
+            ),
+            backendId: id,
+            backendDeviceToken: backendDeviceToken
+        )
+    }
+
+    func makeLocation(for merchant: Merchant) -> Location {
+        Location(
+            id: stableUUID(from: locationId),
+            merchantId: merchant.id,
+            name: locationName,
+            address: subtitle,
+            backendId: locationId,
+            backendDeviceToken: backendDeviceToken
+        )
+    }
+
+    private func stableUUID(from value: String) -> UUID {
+        var first: UInt64 = 14_695_981_039_346_656_037
+        var second: UInt64 = 10_995_116_282_111
+
+        for byte in value.utf8 {
+            first = (first ^ UInt64(byte)) &* 1_099_511_628_211
+            second = (second &* 1_099_511_628_211) ^ UInt64(byte)
+        }
+
+        let bytes = withUnsafeBytes(of: (first.bigEndian, second.bigEndian)) { Array($0) }
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
+    }
+}
+
 struct LoyaltyProgram: Identifiable, Equatable, Sendable {
     let id: UUID
     let name: String
     let rewardName: String
     let rewardThreshold: Int
+    let backendId: String?
+
+    init(
+        id: UUID,
+        name: String,
+        rewardName: String,
+        rewardThreshold: Int,
+        backendId: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.rewardName = rewardName
+        self.rewardThreshold = rewardThreshold
+        self.backendId = backendId
+    }
 }
 
 struct StampEvent: Identifiable, Equatable, Sendable {

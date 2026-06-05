@@ -78,7 +78,7 @@ struct MerchantHomeView: View {
                     Text(viewModel.merchant?.name ?? "Kitchen at the Wharf")
                         .font(.headline)
                         .foregroundStyle(PocketStampTheme.espresso)
-                    Text(viewModel.location?.name ?? "Main Till")
+                    Text("\(viewModel.location?.name ?? viewModel.selectedDemoMerchant.locationName) · \(AppEnvironment.backendMode.displayName) · \(deviceBadgeText)")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -93,6 +93,8 @@ struct MerchantHomeView: View {
                     .background((viewModel.device == nil ? Color.orange : Color.green).opacity(0.12))
                     .clipShape(Capsule())
             }
+
+            demoMerchantSelector
 
             VStack(spacing: 10) {
                 statusRow(
@@ -114,6 +116,49 @@ struct MerchantHomeView: View {
         }
         .padding(16)
         .pocketStampCard()
+    }
+
+    private var demoMerchantSelector: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "storefront.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(PocketStampTheme.brown)
+                .frame(width: 32, height: 32)
+                .background(PocketStampTheme.cream.opacity(0.9))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Demo merchant")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(viewModel.selectedDemoMerchant.displayName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PocketStampTheme.espresso)
+            }
+
+            Spacer(minLength: 8)
+
+            Menu {
+                ForEach(viewModel.availableDemoMerchants) { merchant in
+                    Button {
+                        viewModel.selectDemoMerchant(merchant)
+                    } label: {
+                        Text(merchant.displayName)
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(PocketStampTheme.espresso)
+                    .frame(width: 34, height: 34)
+                    .background(.white.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .disabled(viewModel.availableDemoMerchants.count <= 1 || viewModel.isBusy)
+        }
+        .padding(12)
+        .background(PocketStampTheme.caramel.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private var demoCustomerSelector: some View {
