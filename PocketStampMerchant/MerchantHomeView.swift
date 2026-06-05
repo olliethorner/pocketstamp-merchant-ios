@@ -94,7 +94,9 @@ struct MerchantHomeView: View {
                     .clipShape(Capsule())
             }
 
-            demoMerchantSelector
+            if viewModel.accessMode == .demo {
+                demoMerchantSelector
+            }
 
             VStack(spacing: 10) {
                 statusRow(
@@ -102,6 +104,13 @@ struct MerchantHomeView: View {
                     title: "Backend",
                     value: AppEnvironment.backendMode.displayName
                 )
+                if let authenticatedMerchantContext = viewModel.authenticatedMerchantContext {
+                    statusRow(
+                        icon: "person.badge.key.fill",
+                        title: "Signed in",
+                        value: "\(authenticatedMerchantContext.role.capitalized) · \(authenticatedMerchantContext.email)"
+                    )
+                }
                 statusRow(
                     icon: "iphone.radiowaves.left.and.right",
                     title: "Reader",
@@ -174,10 +183,10 @@ struct MerchantHomeView: View {
                 Text("Demo customer")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
-                Text(viewModel.selectedDemoCustomer.displayName)
+                Text(viewModel.selectedDemoCustomer?.displayName ?? "No demo customer configured")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(PocketStampTheme.espresso)
-                Text(viewModel.selectedDemoCustomer.subtitle)
+                Text(viewModel.selectedDemoCustomer?.subtitle ?? "Add a matching demo pass for this merchant.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -223,7 +232,7 @@ struct MerchantHomeView: View {
                 Text(viewModel.tapStatusText ?? "Simulate Wallet Tap")
                     .font(.headline)
 
-                Text(viewModel.selectedDemoCustomer.displayName)
+                Text(viewModel.selectedDemoCustomer?.displayName ?? "No demo customer configured")
                     .font(.caption)
                     .opacity(0.8)
             }
@@ -234,7 +243,7 @@ struct MerchantHomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 22))
             .shadow(color: .black.opacity(0.12), radius: 12, x: 0, y: 7)
         }
-        .disabled(viewModel.isProcessingTap)
+        .disabled(viewModel.isProcessingTap || viewModel.selectedDemoCustomer == nil)
     }
 
     private var deviceBadgeText: String {

@@ -18,6 +18,30 @@ final class RemotePocketStampService: PocketStampService {
         self.apiClient = apiClient
     }
 
+    func login(email: String, password: String) async throws -> AuthLoginResponse {
+        do {
+            return try await apiClient.send(
+                "/api/auth/login",
+                method: .post,
+                body: AuthLoginRequest(email: email, password: password)
+            )
+        } catch {
+            throw friendlyAuthError(from: error)
+        }
+    }
+
+    func me(accessToken: String) async throws -> MerchantContext {
+        do {
+            let response: AuthMeResponse = try await apiClient.send(
+                "/api/auth/me",
+                bearerToken: accessToken
+            )
+            return response.merchantContext
+        } catch {
+            throw friendlyAuthError(from: error)
+        }
+    }
+
     func authenticate(email: String, password: String) async throws -> MerchantUser {
         guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !password.isEmpty else {
@@ -234,6 +258,21 @@ final class RemotePocketStampService: PocketStampService {
     private func fallbackState(for action: TapAction, isSuccess: Bool) -> TapResultState {
         guard isSuccess else { return .error }
         return action == .addStamp ? .stampAdded : .rewardRedeemed
+    }
+
+    private func friendlyAuthError(from error: Error) -> Error {
+        if case let APIError.httpStatus(code, _) = error {
+            switch code {
+            case 401, 403:
+                return PocketStampError.invalidMerchantLogin
+            case 500...599:
+                return PocketStampError.authServiceUnavailable
+            default:
+                return error
+            }
+        }
+
+        return error
     }
 
     private func backendMerchantId(for merchant: Merchant) -> String {

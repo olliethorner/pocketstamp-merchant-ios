@@ -1,5 +1,38 @@
 import Foundation
 
+struct AuthLoginRequest: Codable, Sendable {
+    let email: String
+    let password: String
+}
+
+struct AuthLoginResponse: Codable, Sendable {
+    let ok: Bool
+    let session: AuthSession
+    let merchantContext: MerchantContext
+}
+
+struct AuthSession: Codable, Sendable {
+    let accessToken: String
+    let refreshToken: String
+    let expiresIn: Int
+    let tokenType: String
+}
+
+struct AuthMeResponse: Codable, Sendable {
+    let ok: Bool
+    let merchantContext: MerchantContext
+}
+
+struct MerchantContext: Codable, Equatable, Sendable {
+    let merchantUserId: String
+    let email: String
+    let role: String
+    let merchantId: String
+    let merchantName: String
+    let locationId: String
+    let locationName: String
+}
+
 struct DeviceRegistrationRequest: Codable, Sendable {
     let merchantId: String
     let locationId: String

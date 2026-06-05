@@ -1,4 +1,6 @@
 protocol PocketStampService {
+    func login(email: String, password: String) async throws -> AuthLoginResponse
+    func me(accessToken: String) async throws -> MerchantContext
     func authenticate(email: String, password: String) async throws -> MerchantUser
     func loadMerchant(for user: MerchantUser) async throws -> Merchant
     func loadLocation(for merchant: Merchant) async throws -> Location

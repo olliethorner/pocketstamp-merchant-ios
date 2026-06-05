@@ -1,5 +1,17 @@
 import SwiftUI
 
+enum MerchantAccessMode: String, CaseIterable, Sendable {
+    case demo
+    case authenticated
+
+    var title: String {
+        switch self {
+        case .demo: "Demo mode"
+        case .authenticated: "Merchant login"
+        }
+    }
+}
+
 struct Merchant: Identifiable, Equatable, Sendable {
     let id: UUID
     let name: String
@@ -345,10 +357,14 @@ struct CustomerPassDetail: Equatable, Sendable {
 
 enum PocketStampError: LocalizedError {
     case invalidCredentials
+    case invalidMerchantLogin
+    case authServiceUnavailable
 
     var errorDescription: String? {
         switch self {
         case .invalidCredentials: "Enter an email address and password to continue."
+        case .invalidMerchantLogin: "Email or password was not recognised."
+        case .authServiceUnavailable: "Merchant login is temporarily unavailable. Please try again."
         }
     }
 }

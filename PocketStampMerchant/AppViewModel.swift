@@ -16,6 +16,13 @@ enum TapProcessingStage {
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published private(set) var isAuthenticated = false
+    @Published var accessMode: MerchantAccessMode = .demo
+    @Published var authEmail = ""
+    @Published var authPassword = ""
+    @Published private(set) var authSession: AuthSession?
+    @Published private(set) var authenticatedMerchantContext: MerchantContext?
+    @Published private(set) var authErrorMessage: String?
+    @Published private(set) var isAuthenticating = false
     @Published private(set) var merchant: Merchant?
     @Published private(set) var location: Location?
     @Published private(set) var device: RegisteredDevice?
@@ -29,7 +36,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var availableDemoMerchants = DemoMerchant.all
     @Published private(set) var selectedDemoMerchant = DemoMerchant.kitchenAtTheWharf
     @Published private(set) var availableDemoCustomers = DemoMerchant.kitchenAtTheWharf.demoCustomers
-    @Published private(set) var selectedDemoCustomer = DemoMerchant.kitchenAtTheWharf.demoCustomers[0]
+    @Published private(set) var selectedDemoCustomer: DemoCustomer? = DemoMerchant.kitchenAtTheWharf.demoCustomers[0]
     @Published var errorMessage: String?
 
     private let passReader: PassReader
@@ -67,8 +74,44 @@ final class AppViewModel: ObservableObject {
         isBusy = false
     }
 
+    func authenticateMerchant() async {
+        isAuthenticating = true
+        isBusy = true
+        authErrorMessage = nil
+        errorMessage = nil
+
+        defer {
+            authPassword = ""
+            isAuthenticating = false
+            isBusy = false
+        }
+
+        do {
+            let response = try await service.login(email: authEmail, password: authPassword)
+            // TODO: Persist and refresh merchant sessions with Keychain storage.
+            authSession = response.session
+            authenticatedMerchantContext = response.merchantContext
+            accessMode = .authenticated
+            isAuthenticated = true
+            try await activateAuthenticatedMerchant(response.merchantContext)
+        } catch {
+            authErrorMessage = error.localizedDescription
+        }
+    }
+
+    func setAccessMode(_ mode: MerchantAccessMode) {
+        accessMode = mode
+        authErrorMessage = nil
+        errorMessage = nil
+    }
+
     func logout() {
         isAuthenticated = false
+        accessMode = .demo
+        authSession = nil
+        authenticatedMerchantContext = nil
+        authPassword = ""
+        authErrorMessage = nil
         merchant = nil
         location = nil
         device = nil
@@ -91,12 +134,12 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectDemoMerchant(_ demoMerchant: DemoMerchant) {
+        guard accessMode == .demo else { return }
         guard selectedDemoMerchant != demoMerchant else { return }
 
         let contactEmail = merchant?.contactEmail ?? "counter@pocketstamp.demo"
         selectedDemoMerchant = demoMerchant
-        availableDemoCustomers = demoMerchant.demoCustomers
-        selectedDemoCustomer = demoMerchant.demoCustomers[0]
+        setDemoCustomers(demoMerchant.demoCustomers)
         resetLatestResult()
         activityLog = []
 
@@ -112,7 +155,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func handleCustomerTap() async {
-        guard !isProcessingTap, let merchant, let location, let device else { return }
+        guard !isProcessingTap,
+              let merchant,
+              let location,
+              let device,
+              let selectedDemoCustomer else { return }
 
         print("TAP_UI_STARTED")
         isBusy = true
@@ -208,6 +255,71 @@ final class AppViewModel: ObservableObject {
         self.location = location
         self.device = device
         activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
+    }
+
+    private func activateAuthenticatedMerchant(_ context: MerchantContext) async throws {
+        let matchingDemoMerchant = availableDemoMerchants.first { $0.id == context.merchantId }
+        if let matchingDemoMerchant {
+            selectedDemoMerchant = matchingDemoMerchant
+            setDemoCustomers(matchingDemoMerchant.demoCustomers)
+        } else {
+            setDemoCustomers([])
+        }
+
+        let backendDeviceToken = matchingDemoMerchant?.backendDeviceToken
+        let merchant = Merchant(
+            id: stableUUID(from: context.merchantId),
+            name: context.merchantName,
+            contactEmail: context.email,
+            loyaltyProgram: LoyaltyProgram(
+                id: stableUUID(from: matchingDemoMerchant?.loyaltyProgramId ?? "\(context.merchantId)-loyalty"),
+                name: "Coffee Card",
+                rewardName: "Free coffee",
+                rewardThreshold: 10,
+                backendId: matchingDemoMerchant?.loyaltyProgramId
+            ),
+            backendId: context.merchantId,
+            backendDeviceToken: backendDeviceToken
+        )
+        let location = Location(
+            id: stableUUID(from: context.locationId),
+            merchantId: merchant.id,
+            name: context.locationName,
+            address: context.locationName,
+            backendId: context.locationId,
+            backendDeviceToken: backendDeviceToken
+        )
+
+        // TODO: Future backend hardening should send the bearer token and derive merchant context server-side.
+        let device = try await service.registerDevice(for: merchant, location: location)
+
+        self.merchant = merchant
+        self.location = location
+        self.device = device
+        activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
+    }
+
+    private func setDemoCustomers(_ demoCustomers: [DemoCustomer]) {
+        availableDemoCustomers = demoCustomers
+        selectedDemoCustomer = demoCustomers.first
+    }
+
+    private func stableUUID(from value: String) -> UUID {
+        var first: UInt64 = 14_695_981_039_346_656_037
+        var second: UInt64 = 10_995_116_282_111
+
+        for byte in value.utf8 {
+            first = (first ^ UInt64(byte)) &* 1_099_511_628_211
+            second = (second &* 1_099_511_628_211) ^ UInt64(byte)
+        }
+
+        let bytes = withUnsafeBytes(of: (first.bigEndian, second.bigEndian)) { Array($0) }
+        return UUID(uuid: (
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5], bytes[6], bytes[7],
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15]
+        ))
     }
 
     private func refreshActivity(

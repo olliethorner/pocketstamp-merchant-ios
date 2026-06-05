@@ -9,6 +9,44 @@ final class MockPocketStampService: PocketStampService {
     private var stampEvents: [StampEvent] = []
     private var redemptionEvents: [RedemptionEvent] = []
 
+    func login(email: String, password: String) async throws -> AuthLoginResponse {
+        guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !password.isEmpty else {
+            throw PocketStampError.invalidCredentials
+        }
+
+        return AuthLoginResponse(
+            ok: true,
+            session: AuthSession(
+                accessToken: "mock-access-token",
+                refreshToken: "mock-refresh-token",
+                expiresIn: 3600,
+                tokenType: "bearer"
+            ),
+            merchantContext: MerchantContext(
+                merchantUserId: "mock-staff",
+                email: email,
+                role: "owner",
+                merchantId: DemoMerchant.kitchenAtTheWharf.id,
+                merchantName: DemoMerchant.kitchenAtTheWharf.displayName,
+                locationId: DemoMerchant.kitchenAtTheWharf.locationId,
+                locationName: DemoMerchant.kitchenAtTheWharf.locationName
+            )
+        )
+    }
+
+    func me(accessToken: String) async throws -> MerchantContext {
+        MerchantContext(
+            merchantUserId: "mock-staff",
+            email: "mock@example.com",
+            role: "owner",
+            merchantId: DemoMerchant.kitchenAtTheWharf.id,
+            merchantName: DemoMerchant.kitchenAtTheWharf.displayName,
+            locationId: DemoMerchant.kitchenAtTheWharf.locationId,
+            locationName: DemoMerchant.kitchenAtTheWharf.locationName
+        )
+    }
+
     func authenticate(email: String, password: String) async throws -> MerchantUser {
         guard !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !password.isEmpty else {
