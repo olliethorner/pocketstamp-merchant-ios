@@ -110,6 +110,11 @@ struct MerchantHomeView: View {
                         title: "Signed in",
                         value: "\(authenticatedMerchantContext.role.capitalized) · \(authenticatedMerchantContext.email)"
                     )
+                    statusRow(
+                        icon: "lock.shield.fill",
+                        title: "Session",
+                        value: "Saved securely on this device"
+                    )
                 }
                 statusRow(
                     icon: "iphone.radiowaves.left.and.right",

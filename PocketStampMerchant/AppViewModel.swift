@@ -23,6 +23,7 @@ final class AppViewModel: ObservableObject {
     @Published private(set) var authenticatedMerchantContext: MerchantContext?
     @Published private(set) var authErrorMessage: String?
     @Published private(set) var isAuthenticating = false
+    @Published private(set) var isRestoringSession = true
     @Published private(set) var merchant: Merchant?
     @Published private(set) var location: Location?
     @Published private(set) var device: RegisteredDevice?
@@ -57,6 +58,10 @@ final class AppViewModel: ObservableObject {
         // Swap MockPassReader for an NFCPassReader here after entitlement approval.
         self.passReader = passReader ?? AppEnvironment.makePassReader()
         self.service = service ?? AppEnvironment.makePocketStampService()
+
+        Task {
+            await restoreSavedSession()
+        }
     }
 
     func login(email: String, password: String) async {
@@ -88,11 +93,11 @@ final class AppViewModel: ObservableObject {
 
         do {
             let response = try await service.login(email: authEmail, password: authPassword)
-            // TODO: Persist and refresh merchant sessions with Keychain storage.
             authSession = response.session
             authenticatedMerchantContext = response.merchantContext
             accessMode = .authenticated
             isAuthenticated = true
+            saveAuthSession(response.session)
             try await activateAuthenticatedMerchant(response.merchantContext)
         } catch {
             authErrorMessage = error.localizedDescription
@@ -108,8 +113,7 @@ final class AppViewModel: ObservableObject {
     func logout() {
         isAuthenticated = false
         accessMode = .demo
-        authSession = nil
-        authenticatedMerchantContext = nil
+        clearAuthSession()
         authPassword = ""
         authErrorMessage = nil
         merchant = nil
@@ -253,6 +257,32 @@ final class AppViewModel: ObservableObject {
         return (first + second).filter { seen.insert($0.id).inserted }
     }
 
+    private func restoreSavedSession() async {
+        defer { isRestoringSession = false }
+
+        guard let accessToken = KeychainStore.readString(for: AuthKey.accessToken.rawValue),
+              !accessToken.isEmpty else {
+            return
+        }
+
+        do {
+            let context = try await service.me(accessToken: accessToken)
+            let session = restoredAuthSession(accessToken: accessToken)
+            authSession = session
+            authenticatedMerchantContext = context
+            authEmail = context.email
+            accessMode = .authenticated
+            isAuthenticated = true
+            try await activateAuthenticatedMerchant(context)
+        } catch {
+            KeychainStore.clearPocketStampAuthItems()
+            authSession = nil
+            authenticatedMerchantContext = nil
+            accessMode = .authenticated
+            authErrorMessage = "Your session has expired. Please sign in again."
+        }
+    }
+
     private func activateSelectedDemoMerchant(contactEmail: String) async throws {
         isBusy = true
         errorMessage = nil
@@ -379,10 +409,43 @@ final class AppViewModel: ObservableObject {
 
         if accessMode == .authenticated,
            case PocketStampError.merchantSessionExpired = error {
-            authSession = nil
-            authenticatedMerchantContext = nil
+            clearAuthSession()
             isAuthenticated = false
             authErrorMessage = error.localizedDescription
         }
+    }
+
+    private func saveAuthSession(_ session: AuthSession) {
+        KeychainStore.saveString(session.accessToken, for: AuthKey.accessToken.rawValue)
+        KeychainStore.saveString(session.refreshToken, for: AuthKey.refreshToken.rawValue)
+        KeychainStore.saveString(session.tokenType, for: AuthKey.tokenType.rawValue)
+
+        let expiresAt = Date().addingTimeInterval(TimeInterval(session.expiresIn)).timeIntervalSince1970
+        KeychainStore.saveString(String(expiresAt), for: AuthKey.expiresAt.rawValue)
+
+        // TODO: Refresh token handling is basic for now; implement refresh before access token expiry.
+        // TODO: Add biometric unlock if desired.
+        // TODO: Add a production/demo build flag when demo endpoints are retired.
+    }
+
+    private func restoredAuthSession(accessToken: String) -> AuthSession {
+        let refreshToken = KeychainStore.readString(for: AuthKey.refreshToken.rawValue) ?? ""
+        let tokenType = KeychainStore.readString(for: AuthKey.tokenType.rawValue) ?? "bearer"
+        let expiresAtValue = KeychainStore.readString(for: AuthKey.expiresAt.rawValue)
+        let expiresAt = expiresAtValue.flatMap(TimeInterval.init) ?? Date().timeIntervalSince1970
+        let expiresIn = max(0, Int(expiresAt - Date().timeIntervalSince1970))
+
+        return AuthSession(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: expiresIn,
+            tokenType: tokenType
+        )
+    }
+
+    private func clearAuthSession() {
+        authSession = nil
+        authenticatedMerchantContext = nil
+        KeychainStore.clearPocketStampAuthItems()
     }
 }
