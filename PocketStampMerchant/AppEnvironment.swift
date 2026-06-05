@@ -15,6 +15,10 @@ enum AppBackendMode {
 }
 
 enum AppEnvironment {
+    // true = internal demo/dev build with demo mode and merchant switching available.
+    // false = production merchant-facing build; hide demo mode and merchant selector.
+    static let isDemoModeEnabled = true
+
     // Switch to .mock for the original fully in-memory prototype.
     // Switch to .local for simulator testing with node server.js running on the Mac.
     // Switch to .railway for deployed backend testing.

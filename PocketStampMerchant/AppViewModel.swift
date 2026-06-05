@@ -16,7 +16,7 @@ enum TapProcessingStage {
 @MainActor
 final class AppViewModel: ObservableObject {
     @Published private(set) var isAuthenticated = false
-    @Published var accessMode: MerchantAccessMode = .demo
+    @Published private(set) var accessMode: MerchantAccessMode = AppEnvironment.isDemoModeEnabled ? .demo : .authenticated
     @Published var authEmail = ""
     @Published var authPassword = ""
     @Published private(set) var authSession: AuthSession?
@@ -51,6 +51,14 @@ final class AppViewModel: ObservableObject {
         tapProcessingStage?.statusText
     }
 
+    var isDemoModeEnabled: Bool {
+        AppEnvironment.isDemoModeEnabled
+    }
+
+    var availableAccessModes: [MerchantAccessMode] {
+        isDemoModeEnabled ? MerchantAccessMode.allCases : [.authenticated]
+    }
+
     init(
         passReader: PassReader? = nil,
         service: PocketStampService? = nil
@@ -65,6 +73,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func login(email: String, password: String) async {
+        guard isDemoModeEnabled else {
+            setAccessModeSafely(.authenticated)
+            return
+        }
+
         isBusy = true
         errorMessage = nil
 
@@ -80,6 +93,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func authenticateMerchant() async {
+        setAccessModeSafely(.authenticated)
         isAuthenticating = true
         isBusy = true
         authErrorMessage = nil
@@ -95,7 +109,7 @@ final class AppViewModel: ObservableObject {
             let response = try await service.login(email: authEmail, password: authPassword)
             authSession = response.session
             authenticatedMerchantContext = response.merchantContext
-            accessMode = .authenticated
+            setAccessModeSafely(.authenticated)
             isAuthenticated = true
             saveAuthSession(response.session)
             try await activateAuthenticatedMerchant(response.merchantContext)
@@ -105,14 +119,14 @@ final class AppViewModel: ObservableObject {
     }
 
     func setAccessMode(_ mode: MerchantAccessMode) {
-        accessMode = mode
+        setAccessModeSafely(mode)
         authErrorMessage = nil
         errorMessage = nil
     }
 
     func logout() {
         isAuthenticated = false
-        accessMode = .demo
+        setAccessModeSafely(preferredUnauthenticatedAccessMode)
         clearAuthSession()
         authPassword = ""
         authErrorMessage = nil
@@ -138,7 +152,7 @@ final class AppViewModel: ObservableObject {
     }
 
     func selectDemoMerchant(_ demoMerchant: DemoMerchant) {
-        guard accessMode == .demo else { return }
+        guard isDemoModeEnabled, accessMode == .demo else { return }
         guard selectedDemoMerchant != demoMerchant else { return }
 
         let contactEmail = merchant?.contactEmail ?? "counter@pocketstamp.demo"
@@ -271,14 +285,14 @@ final class AppViewModel: ObservableObject {
             authSession = session
             authenticatedMerchantContext = context
             authEmail = context.email
-            accessMode = .authenticated
+            setAccessModeSafely(.authenticated)
             isAuthenticated = true
             try await activateAuthenticatedMerchant(context)
         } catch {
             KeychainStore.clearPocketStampAuthItems()
             authSession = nil
             authenticatedMerchantContext = nil
-            accessMode = .authenticated
+            setAccessModeSafely(preferredUnauthenticatedAccessMode)
             authErrorMessage = "Your session has expired. Please sign in again."
         }
     }
@@ -411,7 +425,20 @@ final class AppViewModel: ObservableObject {
            case PocketStampError.merchantSessionExpired = error {
             clearAuthSession()
             isAuthenticated = false
+            setAccessModeSafely(preferredUnauthenticatedAccessMode)
             authErrorMessage = error.localizedDescription
+        }
+    }
+
+    private var preferredUnauthenticatedAccessMode: MerchantAccessMode {
+        isDemoModeEnabled ? .demo : .authenticated
+    }
+
+    private func setAccessModeSafely(_ mode: MerchantAccessMode) {
+        if !isDemoModeEnabled, mode == .demo {
+            accessMode = .authenticated
+        } else {
+            accessMode = mode
         }
     }
 
@@ -425,7 +452,7 @@ final class AppViewModel: ObservableObject {
 
         // TODO: Refresh token handling is basic for now; implement refresh before access token expiry.
         // TODO: Add biometric unlock if desired.
-        // TODO: Add a production/demo build flag when demo endpoints are retired.
+        // TODO: Wire demo/prod behavior to build configurations before release.
     }
 
     private func restoredAuthSession(accessToken: String) -> AuthSession {

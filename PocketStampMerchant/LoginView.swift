@@ -14,9 +14,13 @@ struct LoginView: View {
                 VStack(spacing: 28) {
                     Spacer(minLength: 50)
                     branding
-                    accessModePicker
+                    if viewModel.isDemoModeEnabled {
+                        accessModePicker
+                    }
                     loginCard
-                    prototypeNote
+                    if viewModel.isDemoModeEnabled {
+                        prototypeNote
+                    }
                 }
                 .padding(22)
             }
@@ -41,7 +45,7 @@ struct LoginView: View {
 
     private var accessModePicker: some View {
         Picker("Access mode", selection: accessModeBinding) {
-            ForEach(MerchantAccessMode.allCases, id: \.self) { mode in
+            ForEach(viewModel.availableAccessModes, id: \.self) { mode in
                 Text(mode.title).tag(mode)
             }
         }
@@ -62,7 +66,7 @@ struct LoginView: View {
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(PocketStampTheme.espresso)
 
-            Text(viewModel.accessMode == .demo ? "Internal testing with demo merchants and mocked Wallet taps." : "Sign in with your merchant account.")
+            Text(loginDescription)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
@@ -162,6 +166,14 @@ struct LoginView: View {
             .multilineTextAlignment(.center)
             .foregroundStyle(.secondary)
             .padding(.horizontal)
+    }
+
+    private var loginDescription: String {
+        if viewModel.accessMode == .demo {
+            return "Internal testing with demo merchants and mocked Wallet taps. Demo mode is for internal testing."
+        }
+
+        return "Sign in with your merchant account."
     }
 }
 

@@ -94,7 +94,7 @@ struct MerchantHomeView: View {
                     .clipShape(Capsule())
             }
 
-            if viewModel.accessMode == .demo {
+            if viewModel.isDemoModeEnabled && viewModel.accessMode == .demo {
                 demoMerchantSelector
             }
 
@@ -223,6 +223,7 @@ struct MerchantHomeView: View {
 
     private var simulateTapButton: some View {
         Button {
+            // TODO: Production real NFC/VAS reader should replace this mocked Wallet tap.
             Task { await viewModel.handleCustomerTap() }
         } label: {
             VStack(spacing: 8) {
