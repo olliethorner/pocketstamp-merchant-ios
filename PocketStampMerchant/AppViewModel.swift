@@ -186,9 +186,19 @@ final class AppViewModel: ObservableObject {
 
             switch mode {
             case .stamp:
-                result = try await service.addStamp(to: customerPass, merchant: merchant, location: location)
+                result = try await service.addStamp(
+                    to: customerPass,
+                    merchant: merchant,
+                    location: location,
+                    accessToken: accessTokenForMerchantAPIs
+                )
             case .redeem:
-                result = try await service.redeemReward(for: customerPass, merchant: merchant, location: location)
+                result = try await service.redeemReward(
+                    for: customerPass,
+                    merchant: merchant,
+                    location: location,
+                    accessToken: accessTokenForMerchantAPIs
+                )
             }
 
             print("SERVICE_TAP_COMPLETED")
@@ -206,14 +216,15 @@ final class AppViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = error.localizedDescription
+            handleMerchantAPIError(error)
         }
     }
 
     func refreshedResultForDetail(_ result: TapResult) async -> TapResult {
         do {
             let detail = try await service.loadCustomerPassDetail(
-                passSerialNumber: result.customerPass.passSerialNumber
+                passSerialNumber: result.customerPass.passSerialNumber,
+                accessToken: accessTokenForMerchantAPIs
             )
             activityLog = mergedActivity(detail.recentActivity, with: activityLog)
             return TapResult(
@@ -225,7 +236,7 @@ final class AppViewModel: ObservableObject {
                 message: result.message
             )
         } catch {
-            errorMessage = error.localizedDescription
+            handleMerchantAPIError(error)
             return result
         }
     }
@@ -254,7 +265,7 @@ final class AppViewModel: ObservableObject {
         self.merchant = merchant
         self.location = location
         self.device = device
-        activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
+        await refreshRemoteActivity(merchant: merchant, location: location)
     }
 
     private func activateAuthenticatedMerchant(_ context: MerchantContext) async throws {
@@ -290,13 +301,13 @@ final class AppViewModel: ObservableObject {
             backendDeviceToken: backendDeviceToken
         )
 
-        // TODO: Future backend hardening should send the bearer token and derive merchant context server-side.
+        // TODO: Send auth token to device registration if/when backend supports authenticated device APIs.
         let device = try await service.registerDevice(for: merchant, location: location)
 
         self.merchant = merchant
         self.location = location
         self.device = device
-        activityLog = (try? await service.loadActivity(for: merchant, location: location)) ?? []
+        await refreshRemoteActivity(merchant: merchant, location: location)
     }
 
     private func setDemoCustomers(_ demoCustomers: [DemoCustomer]) {
@@ -339,11 +350,39 @@ final class AppViewModel: ObservableObject {
                 device: device
             )
             activityLog.insert(activity, at: 0)
-            if let remoteActivity = try? await service.loadActivity(for: merchant, location: location) {
-                activityLog = remoteActivity
-            }
+            await refreshRemoteActivity(merchant: merchant, location: location)
         } catch {
-            errorMessage = error.localizedDescription
+            handleMerchantAPIError(error)
+        }
+    }
+
+    private var accessTokenForMerchantAPIs: String? {
+        // TODO: Send auth token to all production merchant APIs as backend auth hardening expands.
+        // TODO: Eventually require auth on backend and disable unauthenticated demo endpoints in production.
+        accessMode == .authenticated ? authSession?.accessToken : nil
+    }
+
+    private func refreshRemoteActivity(merchant: Merchant, location: Location) async {
+        do {
+            activityLog = try await service.loadActivity(
+                for: merchant,
+                location: location,
+                accessToken: accessTokenForMerchantAPIs
+            )
+        } catch {
+            handleMerchantAPIError(error)
+        }
+    }
+
+    private func handleMerchantAPIError(_ error: Error) {
+        errorMessage = error.localizedDescription
+
+        if accessMode == .authenticated,
+           case PocketStampError.merchantSessionExpired = error {
+            authSession = nil
+            authenticatedMerchantContext = nil
+            isAuthenticated = false
+            authErrorMessage = error.localizedDescription
         }
     }
 }

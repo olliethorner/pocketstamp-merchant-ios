@@ -115,13 +115,15 @@ final class RemotePocketStampService: PocketStampService {
     func addStamp(
         to customerPass: CustomerPass,
         merchant: Merchant,
-        location: Location
+        location: Location,
+        accessToken: String?
     ) async throws -> TapResult {
         try await mutatePass(
             path: "/api/taps/stamp",
             customerPass: customerPass,
             merchant: merchant,
             location: location,
+            accessToken: accessToken,
             fallbackAction: .addStamp
         )
     }
@@ -129,13 +131,15 @@ final class RemotePocketStampService: PocketStampService {
     func redeemReward(
         for customerPass: CustomerPass,
         merchant: Merchant,
-        location: Location
+        location: Location,
+        accessToken: String?
     ) async throws -> TapResult {
         try await mutatePass(
             path: "/api/taps/redeem",
             customerPass: customerPass,
             merchant: merchant,
             location: location,
+            accessToken: accessToken,
             fallbackAction: .redeemReward
         )
     }
@@ -161,16 +165,23 @@ final class RemotePocketStampService: PocketStampService {
         )
     }
 
-    func loadCustomerPassDetail(passSerialNumber: String) async throws -> CustomerPassDetail {
+    func loadCustomerPassDetail(passSerialNumber: String, accessToken: String?) async throws -> CustomerPassDetail {
         let serial = passSerialNumber.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? passSerialNumber
-        let response: CustomerPassDetailResponse = try await apiClient.send("/api/customer-pass/\(serial)")
-        return CustomerPassDetail(
-            customerPass: mapCustomerPass(response.customerPass),
-            recentActivity: (response.recentActivity ?? []).map(mapEvent)
-        )
+        do {
+            let response: CustomerPassDetailResponse = try await apiClient.send(
+                "/api/customer-pass/\(serial)",
+                bearerToken: accessToken
+            )
+            return CustomerPassDetail(
+                customerPass: mapCustomerPass(response.customerPass),
+                recentActivity: (response.recentActivity ?? []).map(mapEvent)
+            )
+        } catch {
+            throw friendlyMerchantAPIError(from: error)
+        }
     }
 
-    func loadActivity(for merchant: Merchant, location: Location) async throws -> [StampEvent] {
+    func loadActivity(for merchant: Merchant, location: Location, accessToken: String?) async throws -> [StampEvent] {
         var components = URLComponents()
         components.path = "/api/merchant/activity"
         components.queryItems = [
@@ -178,8 +189,15 @@ final class RemotePocketStampService: PocketStampService {
             URLQueryItem(name: "locationId", value: backendLocationId(for: location)),
             URLQueryItem(name: "limit", value: "50")
         ]
-        let response: ActivityLogResponse = try await apiClient.send(components.string ?? "/api/merchant/activity")
-        return (response.events ?? response.activity ?? []).map(mapEvent)
+        do {
+            let response: ActivityLogResponse = try await apiClient.send(
+                components.string ?? "/api/merchant/activity",
+                bearerToken: accessToken
+            )
+            return (response.events ?? response.activity ?? []).map(mapEvent)
+        } catch {
+            throw friendlyMerchantAPIError(from: error)
+        }
     }
 
     private func mutatePass(
@@ -187,6 +205,7 @@ final class RemotePocketStampService: PocketStampService {
         customerPass: CustomerPass,
         merchant: Merchant,
         location: Location,
+        accessToken: String?,
         fallbackAction: TapAction
     ) async throws -> TapResult {
         let request = TapMutationRequest(
@@ -194,7 +213,17 @@ final class RemotePocketStampService: PocketStampService {
             passSerialNumber: customerPass.passSerialNumber,
             idempotencyKey: UUID().uuidString
         )
-        let response: TapMutationResponse = try await apiClient.send(path, method: .post, body: request)
+        let response: TapMutationResponse
+        do {
+            response = try await apiClient.send(
+                path,
+                method: .post,
+                body: request,
+                bearerToken: accessToken
+            )
+        } catch {
+            throw friendlyMerchantAPIError(from: error)
+        }
         guard let pass = response.customerPass else {
             throw APIError.invalidResponse
         }
@@ -267,6 +296,21 @@ final class RemotePocketStampService: PocketStampService {
                 return PocketStampError.invalidMerchantLogin
             case 500...599:
                 return PocketStampError.authServiceUnavailable
+            default:
+                return error
+            }
+        }
+
+        return error
+    }
+
+    private func friendlyMerchantAPIError(from error: Error) -> Error {
+        if case let APIError.httpStatus(code, _) = error {
+            switch code {
+            case 401:
+                return PocketStampError.merchantSessionExpired
+            case 403:
+                return PocketStampError.merchantAccessDenied
             default:
                 return error
             }

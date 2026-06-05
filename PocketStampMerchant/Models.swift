@@ -359,12 +359,16 @@ enum PocketStampError: LocalizedError {
     case invalidCredentials
     case invalidMerchantLogin
     case authServiceUnavailable
+    case merchantSessionExpired
+    case merchantAccessDenied
 
     var errorDescription: String? {
         switch self {
         case .invalidCredentials: "Enter an email address and password to continue."
         case .invalidMerchantLogin: "Email or password was not recognised."
         case .authServiceUnavailable: "Merchant login is temporarily unavailable. Please try again."
+        case .merchantSessionExpired: "Your session has expired. Please sign in again."
+        case .merchantAccessDenied: "This account does not have access to that merchant or customer."
         }
     }
 }

@@ -99,7 +99,8 @@ final class MockPocketStampService: PocketStampService {
     func addStamp(
         to customerPass: CustomerPass,
         merchant: Merchant,
-        location: Location
+        location: Location,
+        accessToken: String?
     ) async throws -> TapResult {
         if let declineResult = validationResult(for: customerPass, action: .addStamp, merchant: merchant) {
             return declineResult
@@ -125,7 +126,8 @@ final class MockPocketStampService: PocketStampService {
     func redeemReward(
         for customerPass: CustomerPass,
         merchant: Merchant,
-        location: Location
+        location: Location,
+        accessToken: String?
     ) async throws -> TapResult {
         if let declineResult = validationResult(for: customerPass, action: .redeemReward, merchant: merchant) {
             return declineResult
@@ -198,7 +200,7 @@ final class MockPocketStampService: PocketStampService {
         return event
     }
 
-    func loadCustomerPassDetail(passSerialNumber: String) async throws -> CustomerPassDetail {
+    func loadCustomerPassDetail(passSerialNumber: String, accessToken: String?) async throws -> CustomerPassDetail {
         guard let customerPass = customerPasses[passSerialNumber] else {
             throw APIError.invalidResponse
         }
@@ -206,7 +208,7 @@ final class MockPocketStampService: PocketStampService {
         return CustomerPassDetail(customerPass: customerPass, recentActivity: events)
     }
 
-    func loadActivity(for merchant: Merchant, location: Location) async throws -> [StampEvent] {
+    func loadActivity(for merchant: Merchant, location: Location, accessToken: String?) async throws -> [StampEvent] {
         stampEvents
     }
 
